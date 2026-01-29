@@ -1,14 +1,21 @@
+import os
 import streamlit as st
 import google.generativeai as genai
 import random
 import time
 
 # ====== CONFIG ======
-# Replace with your real Gemini API key:
-GEMINI_API_KEY = "AIzaSyD1coo3UsCfvJAZqpxPMothjoAXfmhqCO0"
+# Load Gemini API key from environment (.env.toml)
+GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
 
 # Configure the SDK
-genai.configure(api_key="AIzaSyD1coo3UsCfvJAZqpxPMothjoAXfmhqCO0")
+genai.configure(api_key=GEMINI_API_KEY)
+
+# Optional: Test if key is loaded
+if GEMINI_API_KEY is None:
+    st.error("⚠️ GEMINI_API_KEY not found. Check your .env.toml")
+else:
+    st.success("✅ GEMINI_API_KEY loaded correctly")
 
 
 # ====== Functions ======
@@ -122,5 +129,5 @@ if st.session_state.history:
     st.subheader("🗂️ Previous Entries")
     for idx, entry in enumerate(reversed(st.session_state.history[-5:]), 1):
         st.write(f"{idx}. Score: {entry['score']} | {entry['status']}")
-st.info("⚠️ This tool is for self-awareness only. It does NOT provide medical diagnosis or treatment.")
 
+st.info("⚠️ This tool is for self-awareness only. It does NOT provide medical diagnosis or treatment.")
