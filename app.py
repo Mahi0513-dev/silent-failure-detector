@@ -1,40 +1,32 @@
-import os
 import streamlit as st
 import google.generativeai as genai
 import random
 import time
 
 # ====== CONFIG ======
-# Load Gemini API key from environment (.env.toml)
-GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
+# Load Gemini API key safely from Streamlit Secrets
+GEMINI_API_KEY = st.secrets["GEMINI_API_KEY"]
 
 # Configure the SDK
 genai.configure(api_key=GEMINI_API_KEY)
 
 # Optional: Test if key is loaded
-if GEMINI_API_KEY is None:
-    st.error("⚠️ GEMINI_API_KEY not found. Check your .env.toml")
-else:
-    st.success("✅ GEMINI_API_KEY loaded correctly")
-
+st.success("✅ GEMINI_API_KEY loaded correctly")
 
 # ====== Functions ======
 
 def list_supported_models():
     """
-    List models that support generateContent dynamically
-    and return the first available one.
+    Returns the first available model that supports generateContent.
     """
     try:
-        available = genai.list_models()
-        for m in available:
-            # There can be supported_generation_methods containing "generateContent"
+        models = genai.list_models()
+        for m in models:
             if hasattr(m, "supported_generation_methods") and "generateContent" in m.supported_generation_methods:
                 return m.name
     except Exception as e:
         return None
     return None
-
 
 def ai_analysis(journal_text, model_name):
     """
@@ -42,7 +34,6 @@ def ai_analysis(journal_text, model_name):
     """
     try:
         model = genai.GenerativeModel(model_name)
-
         prompt = f"""
         You are a supportive mental health early warning assistant.
         Based on this journal text, return:
@@ -53,22 +44,16 @@ def ai_analysis(journal_text, model_name):
         Journal:
         {journal_text}
         """
-        # call the model
         response = model.generate_content(prompt)
         return response.text
-
     except Exception as e:
         return f"⚠️ AI temporarily unavailable: {e}"
 
-
 def generate_score(text):
-    """
-    Generate a reproducible risk score based on content.
-    """
+    """Generate a reproducible risk score based on content."""
     seed = sum(ord(c) for c in text)
     random.seed(seed)
     return random.randint(25, 95)
-
 
 def risk_status(score):
     if score < 40:
@@ -77,7 +62,6 @@ def risk_status(score):
         return "🟡 Warning"
     else:
         return "🔴 Critical"
-
 
 # ====== UI ======
 
@@ -90,44 +74,44 @@ if "history" not in st.session_state:
 
 journal = st.text_area("✍️ Enter your daily journal / thoughts:")
 
-analyze_btn = st.button("Analyze")
-
-if analyze_btn and journal.strip():
-
-    # progress
+if st.button("Analyze") and journal.strip():
+    # Progress bar
     progress_bar = st.progress(0)
     for i in range(0, 101, 10):
         time.sleep(0.05)
         progress_bar.progress(i)
 
-    # internal score
+    # Internal score
     score = generate_score(journal)
     status = risk_status(score)
 
-    # list models and pick one
+    # Get a valid model
     selected_model = list_supported_models()
     if not selected_model:
-        ai_text = "⚠️ Could not find a supported model. Try again later."
+        ai_text = "⚠️ No supported model found for your API key. Check your API access and available models."
     else:
         ai_text = ai_analysis(journal, selected_model)
 
-    # results
+    # Show results
     st.subheader("📊 Risk Result")
     st.metric("Risk Score (0–100)", score, status)
 
     st.subheader("💡 AI Analysis")
     st.write(ai_text)
 
-    st.session_state.history.append({
-        "text": journal,
-        "score": score,
-        "status": status
-    })
+    # Add entry to history (avoid duplicates)
+    entry = {"text": journal, "score": score, "status": status}
+    if entry not in st.session_state.history:
+        st.session_state.history.append(entry)
 
-# history
+# Show last 5 unique entries
 if st.session_state.history:
     st.subheader("🗂️ Previous Entries")
+    seen = set()
     for idx, entry in enumerate(reversed(st.session_state.history[-5:]), 1):
-        st.write(f"{idx}. Score: {entry['score']} | {entry['status']}")
+        key = (entry["text"], entry["score"], entry["status"])
+        if key not in seen:
+            st.write(f"{idx}. Score: {entry['score']} | {entry['status']}")
+            seen.add(key)
 
 st.info("⚠️ This tool is for self-awareness only. It does NOT provide medical diagnosis or treatment.")
